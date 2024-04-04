@@ -1,0 +1,44 @@
+<!-- scan.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan Face</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#captureBtn').click(function() {
+                // Send AJAX request to capture photo
+                $.ajax({
+                    url: '{% url "capture_photo" %}',
+                    type: 'POST',
+                    data: {
+                        'email': $('#email').val()
+                    },
+                    success: function(response) {
+                        alert(response.message);
+                    },
+                    error: function(xhr, status, error) {
+                        console.error(error);
+                    }
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <h2>Scan Your Face</h2>
+    <form id="scanForm" method="post" action="{% url 'scan_and_send_email' %}">
+        {% csrf_token %}
+        <label for="email">Enter your email:</label>
+        <input type="email" id="email" name="email" required>
+        <br><br>
+        <!-- Add capture button -->
+        <button type="button" id="captureBtn">Capture Photo</button>
+        <br><br>
+        <input type="submit" value="Scan and Send Email">
+    </form>
+</body>
+</html>
