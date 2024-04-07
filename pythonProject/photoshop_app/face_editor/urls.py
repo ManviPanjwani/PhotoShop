@@ -10,6 +10,7 @@ urlpatterns = [
     path('scan/', views.scan_and_send_email, name='scan_and_send_email'),
     path('register/', views.register_user, name='register'),
     path('registration_success/', views.registration_success, name='registration_success'),
+    path('capture_photo/', views.capture_photo, name='capture_photo')
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

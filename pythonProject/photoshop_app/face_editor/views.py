@@ -11,6 +11,79 @@ from .models import UserPhoto, UserProfile
 from skimage.metrics import structural_similarity
 
 
+import cv2
+import numpy as np
+from django.shortcuts import render
+from django.http import JsonResponse
+from .models import UserProfile
+from django.core.mail import send_mail
+from photoshop_app.settings import EMAIL_HOST_USER
+
+# def scan_and_send_email(request):
+#     if request.method == 'POST':
+#         # Get user email from the form
+#         recipient_email = request.POST.get('email')
+
+#         # Initialize the camera
+#         cap = cv2.VideoCapture(0)
+
+#         # Check if the camera is opened successfully
+#         if not cap.isOpened():
+#             return render(request, 'error.html', {'message': 'Failed to open camera.'})
+
+#         # Capture image from camera
+#         ret, frame = cap.read()
+
+#         # Release the camera
+#         cap.release()
+
+#         # Perform face detection (assuming you have haarcascade_frontalface_default.xml)
+#         face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+#         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+#         faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+#         # If no face detected, return error message
+#         if len(faces) == 0:
+#             return render(request, 'error.html', {'message': 'No face detected. Please try again.'})
+
+#         # Retrieve user profile with the submitted email
+#         try:
+#             user_profile = UserProfile.objects.get(user__email=recipient_email)
+#         except UserProfile.DoesNotExist:
+#             return render(request, 'error.html', {'message': 'User profile not found for the submitted email.'})
+
+#         # Retrieve the user profile photo from the database
+#         img_data = user_profile.face_image.read()
+#         nparr = np.frombuffer(img_data, np.uint8)
+#         db_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+#         # Compare captured face with the user profile photo
+#         for (x, y, w, h) in faces:
+#             roi_gray = gray[y:y+h, x:x+w]
+#             roi_color = frame[y:y+h, x:x+w]
+
+#             # Perform face comparison
+#             db_face = cv2.resize(db_image, (w, h))
+#             mse = np.mean((roi_gray - cv2.cvtColor(db_face, cv2.COLOR_BGR2GRAY)) ** 2)
+
+#             # If mean squared error is below a certain threshold, consider it a match
+#             if mse < 1000:
+#                 # Send the modified image via email
+#                 subject = 'Scanned Face'
+#                 message = 'Here is your scanned face image.'
+#                 sender_email = 'manvi.panjwani@gmail.com'  # Change this to your sender email
+#                 send_mail(subject, message, EMAIL_HOST_USER, [recipient_email], fail_silently=False)
+#                 return render(request, 'success.html', {'email': recipient_email})
+
+#         # If no match found, return error message
+#         return render(request, 'error.html', {'message': 'Face not recognized. Please try again.'})
+
+#     return render(request, 'scan.html')
+from django.core.mail import send_mail, EmailMessage
+import cv2
+from .models import UserPhoto
+from django.shortcuts import render
+
 def scan_and_send_email(request):
     if request.method == 'POST':
         # Get user email from the form
@@ -23,16 +96,8 @@ def scan_and_send_email(request):
         if not cap.isOpened():
             return render(request, 'error.html', {'message': 'Failed to open camera.'})
 
-        while True:
-            # Capture frame from camera
-            ret, frame = cap.read()
-
-            # Display the frame in a window
-            cv2.imshow('Camera Preview', frame)
-
-            # Check for key press (wait for 'q' key to capture image)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+        # Capture image from camera
+        ret, frame = cap.read()
 
         # Release the camera
         cap.release()
@@ -46,12 +111,15 @@ def scan_and_send_email(request):
         if len(faces) == 0:
             return render(request, 'error.html', {'message': 'No face detected. Please try again.'})
 
-        # Retrieve user profile photos from the database
-        user_profiles = UserProfile.objects.all()
+        # Retrieve user photos from the database
+        user_photos = UserPhoto.objects.all()
 
-        # Compare captured face with faces from user profiles
-        for profile in user_profiles:
-            img_data = profile.face_image.read()
+        # List to store matched photos
+        matched_photos = []
+
+        # Compare captured face with the user photos
+        for photo in user_photos:
+            img_data = photo.photo.read()
             nparr = np.frombuffer(img_data, np.uint8)
             db_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
@@ -65,17 +133,35 @@ def scan_and_send_email(request):
 
                 # If mean squared error is below a certain threshold, consider it a match
                 if mse < 1000:
-                    # Send the modified image via email
-                    subject = 'Scanned Face'
-                    message = 'Here is your scanned face image.'
-                    sender_email = 'your@email.com'  # Change this to your sender email
-                    send_mail(subject, message, sender_email, [recipient_email], fail_silently=False)
-                    return render(request, 'success.html', {'email': recipient_email})
+                    matched_photos.append(photo)
+                    break  # Exit loop once a match is found
 
         # If no match found, return error message
-        return render(request, 'error.html', {'message': 'Face not recognized. Please try again.'})
+        if not matched_photos:
+            return render(request, 'error.html', {'message': 'No matching photo found in the database.'})
+
+        # Create an email message object
+        email = EmailMessage(
+            'Scanned Face',
+            'Here are the scanned face images matching from the user photo database.',
+            'manvi.panjwani@gmail.com',  # Change this to your sender email
+            [recipient_email],
+        )
+
+        # Attach matched photos to the email
+        for photo in matched_photos:
+            email.attach(photo.photo.name, photo.photo.read(), 'image/jpeg')
+
+        # Send the email
+        email.send(fail_silently=False)
+
+        return render(request, 'success.html', {'email': recipient_email})
 
     return render(request, 'scan.html')
+
+
+
+
 
 
 
